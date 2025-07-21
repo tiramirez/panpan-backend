@@ -1,0 +1,63 @@
+name: Deploy Lambdas
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+
+jobs:
+  deploy:
+    name: Build & Upload Changed Lambdas
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    env:
+      AWS_REGION: us-east-1
+
+    steps:
+      - name: ⏬ Checkout repository
+        uses: actions/checkout@v3
+
+      - name: 🧠 Get changed lambda directories
+        id: changes
+        run: |
+          echo "Looking for changed lambda folders..."
+          CHANGED_DIRS=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} \
+            | grep '^lambdas/' | cut -d '/' -f2 | sort -u)
+          echo "Changed directories:"
+          echo "$CHANGED_DIRS"
+          echo "changed=${CHANGED_DIRS}" >> $GITHUB_OUTPUT
+
+      - name: 🧰 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: 🔐 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: 📦 Build zip files for changed lambdas
+        run: |
+          mkdir -p dist
+          for lambda in ${{ steps.changes.outputs.changed }}; do
+            echo "Building $lambda..."
+            bash ./build_zip.sh "$lambda"
+          done
+
+      - name: 📤 Upload to S3
+        run: |
+          S3_BUCKET=${{ secrets.lambda_artifacts_bucket }}-${{ github.ref_name }}
+          for lambda in ${{ steps.changes.outputs.changed }}; do
+            ZIP_FILE="dist/${lambda}.zip"
+            if [ -f "$ZIP_FILE" ]; then
+              echo "Uploading $ZIP_FILE to s3://$S3_BUCKET/${lambda}.zip"
+              aws s3 cp "$ZIP_FILE" "s3://$S3_BUCKET/${lambda}.zip"
+            fi
+          done
