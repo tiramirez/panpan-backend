@@ -26,16 +26,29 @@ jobs:
         id: changes
         run: |
           echo "Looking for changed lambda folders..."
-          # Use the previous commit as base for comparison
+          
+          # Get the base SHA and validate it
           BASE_SHA="${{ github.event.before }}"
+          echo "Base SHA: $BASE_SHA"
+          
+          # Check if this is a null SHA (first commit)
           if [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
-            # For initial commits, compare with empty tree
+            echo "First commit detected, comparing with empty tree"
             CHANGED_DIRS=$(git diff --name-only 4b825dc642cb6eb9a060e54bf8d69288fbee4904...HEAD \
               | grep '^lambdas/' | cut -d '/' -f2 | sort -u)
           else
-            CHANGED_DIRS=$(git diff --name-only $BASE_SHA...HEAD \
-              | grep '^lambdas/' | cut -d '/' -f2 | sort -u)
+            # Validate that the base SHA exists in the repository
+            if ! git cat-file -e "$BASE_SHA" 2>/dev/null; then
+              echo "Base SHA $BASE_SHA not found in repository, falling back to empty tree"
+              CHANGED_DIRS=$(git diff --name-only 4b825dc642cb6eb9a060e54bf8d69288fbee4904...HEAD \
+                | grep '^lambdas/' | cut -d '/' -f2 | sort -u)
+            else
+              echo "Using base SHA $BASE_SHA for comparison"
+              CHANGED_DIRS=$(git diff --name-only $BASE_SHA...HEAD \
+                | grep '^lambdas/' | cut -d '/' -f2 | sort -u)
+            fi
           fi
+          
           echo "Changed directories:"
           echo "$CHANGED_DIRS"
           if [ -z "$CHANGED_DIRS" ]; then
