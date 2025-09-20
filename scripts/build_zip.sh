@@ -38,15 +38,30 @@ build_lambda() {
 
     echo "📋 Copying source files for $lambda_name..."
     
-    # Copy all files from lambda directory, preserving structure
-    if ! cp -r "$lambda_path"* "$build_dir"/ 2>/dev/null; then
-        echo "❌ Failed to copy files from $lambda_path"
+    # Method 1: Try copying all contents with proper path handling
+    if [ -d "$lambda_path" ]; then
+        # Copy all files and subdirectories
+        if ! cp -r "$lambda_path"/* "$build_dir"/ 2>/dev/null; then
+            echo "⚠️  Primary copy method failed, trying alternative..."
+            # Method 2: Copy individual items
+            for item in "$lambda_path"/*; do
+                if [ -e "$item" ]; then
+                    item_name=$(basename "$item")
+                    echo "   Copying: $item_name"
+                    cp -r "$item" "$build_dir"/
+                fi
+            done
+        fi
+    else
+        echo "❌ Lambda directory $lambda_path does not exist"
         exit 1
     fi
     
     # Verify essential files were copied
     if [ ! -f "$build_dir/handler.py" ]; then
         echo "❌ handler.py not found in build directory after copy"
+        echo "💡 Files in build directory:"
+        ls -la "$build_dir" || echo "   (build directory is empty)"
         exit 1
     fi
     
@@ -99,8 +114,10 @@ build_lambda() {
     fi
     
     # Check if handler.py is in the zip
-    if ! unzip -l "$zip_file" | grep -q "handler.py"; then
+    if ! unzip -l "$zip_file" | grep -q "handler\.py"; then
         echo "❌ handler.py not found in zip file for $lambda_name"
+        echo "💡 Zip contents:"
+        unzip -l "$zip_file" | head -10
         exit 1
     fi
     
