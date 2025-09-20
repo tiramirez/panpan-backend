@@ -25,50 +25,6 @@ usage() {
     exit 1
 }
 
-LAMBDA_DIR="./lambdas"
-DIST_DIR="./dist"
-BUILD_DIR="./build"
-
-# Ensure dist directory exists
-mkdir -p "$DIST_DIR"
-
-# If lambda name provided, build only that lambda
-if [ $# -eq 1 ]; then
-    LAMBDA_NAME="$1"
-    LAMBDA_PATH="$LAMBDA_DIR/$LAMBDA_NAME"
-    
-    # Validate lambda directory exists
-    if [ ! -d "$LAMBDA_PATH" ]; then
-        echo "❌ Error: Lambda directory '$LAMBDA_PATH' not found"
-        echo "💡 Available lambdas:"
-        ls -1 "$LAMBDA_DIR" 2>/dev/null | sed 's/^/   - /' || echo "   (none found)"
-        exit 1
-    fi
-    
-    # Validate handler.py exists
-    if [ ! -f "$LAMBDA_PATH/handler.py" ]; then
-        echo "❌ Error: handler.py not found in '$LAMBDA_PATH'"
-        echo "💡 Files in $LAMBDA_PATH:"
-        ls -la "$LAMBDA_PATH" 2>/dev/null | sed 's/^/   /' || echo "   (directory is empty)"
-        exit 1
-    fi
-    
-    echo "📦 Building Lambda: $LAMBDA_NAME"
-    build_lambda "$LAMBDA_NAME" "$LAMBDA_PATH"
-    
-elif [ $# -eq 0 ]; then
-    echo "📦 Building all Lambda functions..."
-    for lambda_path in "$LAMBDA_DIR"/*/; do
-        if [ -d "$lambda_path" ]; then
-            lambda_name=$(basename "$lambda_path")
-            build_lambda "$lambda_name" "$lambda_path"
-        fi
-    done
-    echo "🎉 All Lambda functions zipped in $DIST_DIR/"
-else
-    usage
-fi
-
 # Function to build a single lambda
 build_lambda() {
     local lambda_name="$1"
@@ -156,3 +112,47 @@ build_lambda() {
     echo "   📦 Size: $file_size"
     echo "   📁 Files: $file_count"
 }
+
+LAMBDA_DIR="./lambdas"
+DIST_DIR="./dist"
+BUILD_DIR="./build"
+
+# Ensure dist directory exists
+mkdir -p "$DIST_DIR"
+
+# If lambda name provided, build only that lambda
+if [ $# -eq 1 ]; then
+    LAMBDA_NAME="$1"
+    LAMBDA_PATH="$LAMBDA_DIR/$LAMBDA_NAME"
+    
+    # Validate lambda directory exists
+    if [ ! -d "$LAMBDA_PATH" ]; then
+        echo "❌ Error: Lambda directory '$LAMBDA_PATH' not found"
+        echo "💡 Available lambdas:"
+        ls -1 "$LAMBDA_DIR" 2>/dev/null | sed 's/^/   - /' || echo "   (none found)"
+        exit 1
+    fi
+    
+    # Validate handler.py exists
+    if [ ! -f "$LAMBDA_PATH/handler.py" ]; then
+        echo "❌ Error: handler.py not found in '$LAMBDA_PATH'"
+        echo "💡 Files in $LAMBDA_PATH:"
+        ls -la "$LAMBDA_PATH" 2>/dev/null | sed 's/^/   /' || echo "   (directory is empty)"
+        exit 1
+    fi
+    
+    echo "📦 Building Lambda: $LAMBDA_NAME"
+    build_lambda "$LAMBDA_NAME" "$LAMBDA_PATH"
+    
+elif [ $# -eq 0 ]; then
+    echo "📦 Building all Lambda functions..."
+    for lambda_path in "$LAMBDA_DIR"/*/; do
+        if [ -d "$lambda_path" ]; then
+            lambda_name=$(basename "$lambda_path")
+            build_lambda "$lambda_name" "$lambda_path"
+        fi
+    done
+    echo "🎉 All Lambda functions zipped in $DIST_DIR/"
+else
+    usage
+fi
