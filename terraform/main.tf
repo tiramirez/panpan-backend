@@ -38,6 +38,11 @@ resource "aws_iam_role" "lambda_role" {
     environment = terraform.workspace
     project     = var.project_name
   }
+
+  # Ignore changes to the role name if it already exists
+  lifecycle {
+    ignore_changes = [name]
+  }
 }
 
 # IAM policy for Lambda to access S3
@@ -66,6 +71,11 @@ resource "aws_iam_role_policy" "lambda_s3_policy" {
       }
     ]
   })
+
+  # Ignore changes to the policy name if it already exists
+  lifecycle {
+    ignore_changes = [name]
+  }
 }
 
 # Attach basic Lambda execution policy
