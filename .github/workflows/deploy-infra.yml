@@ -1,0 +1,63 @@
+name: Terraform Plan and Apply
+
+on:
+  push:
+    branches:
+      - prod
+      - develop
+
+jobs:
+  terraform:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name }}
+    permissions:
+      id-token: write  # Required for OIDC
+      contents: read   # For checking out code
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: terraform init -backend-config="key=terraform/${{ github.ref_name }}/terraform.tfstate"
+
+      - name: Select Terraform workspace
+        working-directory: ./terraform
+        run: |
+          terraform workspace select ${{ github.ref_name }} || terraform workspace new ${{ github.ref_name }}
+
+      - name: Terraform Validate
+        working-directory: ./terraform
+        run: terraform validate
+
+      - name: Terraform Plan
+        working-directory: ./terraform
+        env:
+          TF_VAR_project_name: ${{ vars.PROJECT_NAME }}
+          TF_VAR_aws_region: ${{ vars.AWS_REGION }}
+          TF_VAR_bucket_name: ${{ vars.BUCKET_NAME }}
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        working-directory: ./terraform
+        env:
+          TF_VAR_project_name: ${{ vars.PROJECT_NAME }}
+          TF_VAR_aws_region: ${{ vars.AWS_REGION }}
+          TF_VAR_bucket_name: ${{ vars.BUCKET_NAME }}
+        run: terraform apply tfplan
