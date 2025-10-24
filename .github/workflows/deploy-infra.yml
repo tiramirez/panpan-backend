@@ -50,7 +50,6 @@ jobs:
         working-directory: ./terraform
         run: |
           echo "PROJECT_NAME: ${{ vars.PROJECT_NAME }}"
-          echo "AWS_REGION: ${{ vars.AWS_REGION }}"
           echo "BUCKET_NAME: ${{ vars.BUCKET_NAME }}"
           echo "Workspace: $(terraform workspace show)"
 
@@ -58,7 +57,7 @@ jobs:
         working-directory: ./terraform
         env:
           TF_VAR_project_name: ${{ vars.PROJECT_NAME }}
-          TF_VAR_aws_region: ${{ vars.AWS_REGION }}
+          TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
           TF_VAR_bucket_name: ${{ vars.BUCKET_NAME }}
         run: terraform plan -out=tfplan
 
@@ -66,6 +65,6 @@ jobs:
         working-directory: ./terraform
         env:
           TF_VAR_project_name: ${{ vars.PROJECT_NAME }}
-          TF_VAR_aws_region: ${{ vars.AWS_REGION }}
+          TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
           TF_VAR_bucket_name: ${{ vars.BUCKET_NAME }}
         run: terraform apply tfplan
