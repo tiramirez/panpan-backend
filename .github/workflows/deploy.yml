@@ -5,10 +5,12 @@ on:
     branches:
       - develop
       - prod
+    paths:
+      - 'lambdas/lambda_test/**' # This workflow ONLY runs if files in lambda_test change
 
 jobs:
   deploy:
-    name: Build & Upload Changed Lambdas
+    name: Deploy lambda_test
     runs-on: ubuntu-latest
 
     permissions:
@@ -22,138 +24,16 @@ jobs:
       - name: ⏬ Checkout repository
         uses: actions/checkout@v3
 
-      - name: 🧠 Get changed lambda directories
-        id: changes
-        run: |
-          echo "Looking for changed lambda folders..."
-          
-          # Get the base SHA and validate it
-          BASE_SHA="${{ github.event.before }}"
-          echo "Base SHA: $BASE_SHA"
-          
-          # Check if this is a null SHA (first commit)
-          if [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
-            echo "First commit detected, showing all files as changed"
-            CHANGED_DIRS=$(git ls-tree -r --name-only HEAD \
-              | grep '^lambdas/' | cut -d '/' -f2 | sort -u)
-          else
-            # Validate that the base SHA exists in the repository
-            if ! git cat-file -e "$BASE_SHA" 2>/dev/null; then
-              echo "Base SHA $BASE_SHA not found in repository, showing all files as changed"
-              CHANGED_DIRS=$(git ls-tree -r --name-only HEAD \
-                | grep '^lambdas/' | cut -d '/' -f2 | sort -u)
-            else
-              echo "Using base SHA $BASE_SHA for comparison"
-              CHANGED_DIRS=$(git diff --name-only $BASE_SHA...HEAD \
-                | grep '^lambdas/' | cut -d '/' -f2 | sort -u)
-            fi
-          fi
-          
-          echo "Changed directories:"
-          echo "$CHANGED_DIRS"
-          if [ -z "$CHANGED_DIRS" ]; then
-            echo "No lambda directories changed, skipping deployment"
-            echo "changed=" >> $GITHUB_OUTPUT
-          else
-            echo "changed=${CHANGED_DIRS}" >> $GITHUB_OUTPUT
-          fi
-
-      - name: 🧰 Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
-      - name: 🔍 Validate lambda functions
-        if: steps.changes.outputs.changed != ''
-        run: |
-          for lambda in ${{ steps.changes.outputs.changed }}; do
-            echo "Validating $lambda..."
-            LAMBDA_DIR="lambdas/$lambda"
-            
-            # Check if lambda directory exists
-            if [ ! -d "$LAMBDA_DIR" ]; then
-              echo "❌ Lambda directory '$LAMBDA_DIR' not found"
-              exit 1
-            fi
-            
-            # Check for handler.py
-            if [ ! -f "$LAMBDA_DIR/handler.py" ]; then
-              echo "❌ handler.py not found in $LAMBDA_DIR"
-              exit 1
-            fi
-            
-            # Validate Python syntax
-            if ! python -m py_compile "$LAMBDA_DIR/handler.py"; then
-              echo "❌ Python syntax error in $LAMBDA_DIR/handler.py"
-              exit 1
-            fi
-            
-            # Check for requirements.txt if it exists
-            if [ -f "$LAMBDA_DIR/requirements.txt" ]; then
-              if ! python -c "import pkg_resources; pkg_resources.parse_requirements(open('$LAMBDA_DIR/requirements.txt'))"; then
-                echo "❌ Invalid requirements.txt format in $LAMBDA_DIR"
-                exit 1
-              fi
-            fi
-            
-            echo "✅ $lambda validation passed"
-          done
-
       - name: 🔐 Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: 🔍 Verify AWS access
-        if: steps.changes.outputs.changed != ''
-        run: |
-          echo "Verifying AWS access..."
-          if ! aws sts get-caller-identity; then
-            echo "❌ Failed to authenticate with AWS"
-            exit 1
-          fi
-          echo "✅ AWS authentication successful"
-
-      - name: 📦 Build zip files for changed lambdas
-        if: steps.changes.outputs.changed != ''
-        run: |
-          mkdir -p dist
-          for lambda in ${{ steps.changes.outputs.changed }}; do
-            echo "Building $lambda..."
-            if [ ! -d "lambdas/$lambda" ]; then
-              echo "❌ Lambda directory 'lambdas/$lambda' not found, skipping..."
-              continue
-            fi
-            if ! bash ./scripts/build_zip.sh "$lambda"; then
-              echo "❌ Failed to build $lambda"
-              exit 1
-            fi
-            echo "✅ Successfully built $lambda"
-          done
-
-      - name: 📤 Upload to S3
-        if: steps.changes.outputs.changed != ''
-        run: |
-          S3_BUCKET=${{ secrets.lambda_artifacts_bucket }}-${{ github.ref_name }}
-          echo "Using S3 bucket: $S3_BUCKET"
-          for lambda in ${{ steps.changes.outputs.changed }}; do
-            ZIP_FILE="dist/${lambda}.zip"
-            if [ -f "$ZIP_FILE" ]; then
-              echo "Uploading $ZIP_FILE to s3://$S3_BUCKET/${lambda}.zip"
-              if ! aws s3 cp "$ZIP_FILE" "s3://$S3_BUCKET/${lambda}.zip"; then
-                echo "❌ Failed to upload $ZIP_FILE to S3"
-                exit 1
-              fi
-              echo "✅ Successfully uploaded $lambda"
-            else
-              echo "❌ Zip file $ZIP_FILE not found, skipping upload"
-              exit 1
-            fi
-          done
-
-      - name: 📝 No changes detected
-        if: steps.changes.outputs.changed == ''
-        run: |
-          echo "ℹ️  No lambda directories have changed in this commit"
-          echo "Skipping deployment process"
+      - name: 🚀 Deploy Lambda function
+        uses: aws-actions/aws-lambda-deploy@v1
+        with:
+          function-name: ${{ secrets.LAMBDA_FUNCTION_NAME }}-${{ github.ref_name }}
+          code-artifacts-dir: lambdas/lambda_test/
+          handler: handler.lambda_handler
+          runtime: python3.11
