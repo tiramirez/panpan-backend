@@ -1,16 +1,15 @@
 terraform {
   backend "s3" {
-    bucket  = "panpan-infrastructure-backend"
+    bucket  = "panpan-terraform-state"
     region  = "us-east-1"
-    # Key will be overridden by -backend-config in workflow
     key     = "terraform/dev/terraform.tfstate"
     encrypt = true
   }
 
-  required_version = ">=0.13.0"
+  required_version = ">=1.5.0"
   required_providers {
     aws = {
-      version = ">= 2.7.0"
+      version = ">= 5.0"
       source  = "hashicorp/aws"
     }
   }
