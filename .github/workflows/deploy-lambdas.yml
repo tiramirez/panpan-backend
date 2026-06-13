@@ -1,0 +1,120 @@
+name: Deploy Lambdas
+
+on:
+  push:
+    branches: [develop, prod]
+    paths:
+      - 'lambdas/**'
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      shared: ${{ steps.filter.outputs.shared }}
+      api: ${{ steps.filter.outputs.api }}
+      send-email: ${{ steps.filter.outputs.send-email }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            shared:
+              - 'lambdas/shared/**'
+            api:
+              - 'lambdas/api/**'
+            send-email:
+              - 'lambdas/send-email/**'
+
+  deploy:
+    name: Build and deploy Lambda functions
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'prod' && 'prod' || 'dev' }}
+
+    permissions:
+      id-token: write
+      contents: read
+
+    env:
+      AWS_REGION: us-east-1
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Set environment name
+        id: env
+        run: |
+          if [ "${{ github.ref_name }}" = "prod" ]; then
+            echo "name=prod" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=dev" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build shared layer
+        if: needs.detect-changes.outputs.shared == 'true'
+        run: bash scripts/build.sh shared-layer
+
+      - name: Build api lambda
+        if: needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.shared == 'true'
+        run: bash scripts/build.sh api
+
+      - name: Build send-email lambda
+        if: needs.detect-changes.outputs['send-email'] == 'true' || needs.detect-changes.outputs.shared == 'true'
+        run: bash scripts/build.sh send-email
+
+      - name: Upload shared layer to S3
+        if: needs.detect-changes.outputs.shared == 'true'
+        run: |
+          ENV=${{ steps.env.outputs.name }}
+          aws s3 cp dist/shared-layer.zip s3://panpan-${ENV}-artifacts/shared-layer.zip
+
+      - name: Upload api to S3
+        if: needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.shared == 'true'
+        run: |
+          ENV=${{ steps.env.outputs.name }}
+          aws s3 cp dist/api.zip s3://panpan-${ENV}-artifacts/api.zip
+
+      - name: Upload send-email to S3
+        if: needs.detect-changes.outputs['send-email'] == 'true' || needs.detect-changes.outputs.shared == 'true'
+        run: |
+          ENV=${{ steps.env.outputs.name }}
+          aws s3 cp dist/send-email.zip s3://panpan-${ENV}-artifacts/send-email.zip
+
+      - name: Deploy shared layer
+        if: needs.detect-changes.outputs.shared == 'true'
+        run: |
+          ENV=${{ steps.env.outputs.name }}
+          aws lambda publish-layer-version \
+            --layer-name panpan-${ENV}-shared-layer \
+            --content S3Bucket=panpan-${ENV}-artifacts,S3Key=shared-layer.zip \
+            --compatible-runtimes python3.12
+
+      - name: Deploy api lambda
+        if: needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.shared == 'true'
+        run: |
+          ENV=${{ steps.env.outputs.name }}
+          aws lambda update-function-code \
+            --function-name panpan-${ENV}-api \
+            --s3-bucket panpan-${ENV}-artifacts \
+            --s3-key api.zip
+
+      - name: Deploy send-email lambda
+        if: needs.detect-changes.outputs['send-email'] == 'true' || needs.detect-changes.outputs.shared == 'true'
+        run: |
+          ENV=${{ steps.env.outputs.name }}
+          aws lambda update-function-code \
+            --function-name panpan-${ENV}-send-email \
+            --s3-bucket panpan-${ENV}-artifacts \
+            --s3-key send-email.zip

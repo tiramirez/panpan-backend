@@ -1,125 +1,287 @@
 provider "aws" {
-  region  = var.aws_region
+  region = var.aws_region
 }
 
-module "s3_bucket" {
-  source = "terraform-aws-modules/s3-bucket/aws"
+# ─── Storage ────────────────────────────────────────────────────────────────
 
-  bucket = "${var.bucket_name}-${terraform.workspace}"
+resource "aws_dynamodb_table" "orders" {
+  name         = "${local.prefix}-orders"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "PK"
+  range_key    = "SK"
 
-  versioning = {
-    enabled = true
+  attribute {
+    name = "PK"
+    type = "S"
+  }
+  attribute {
+    name = "SK"
+    type = "S"
+  }
+  attribute {
+    name = "GSI1-PK"
+    type = "S"
+  }
+  attribute {
+    name = "GSI1-SK"
+    type = "S"
+  }
+  attribute {
+    name = "GSI2-PK"
+    type = "S"
+  }
+  attribute {
+    name = "GSI2-SK"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "GSI1"
+    hash_key        = "GSI1-PK"
+    range_key       = "GSI1-SK"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "GSI2"
+    hash_key        = "GSI2-PK"
+    range_key       = "GSI2-SK"
+    projection_type = "ALL"
   }
 
   tags = {
-    environment = terraform.workspace
-    project     = var.project_name
+    environment = local.env
+    project     = "panpan"
   }
 }
 
-# IAM role for Lambda function
-resource "aws_iam_role" "lambda_role" {
-  name = "${var.project_name}-lambda-role-${terraform.workspace}"
+resource "aws_sqs_queue" "orders" {
+  name                       = "${local.prefix}-orders"
+  visibility_timeout_seconds = 300
+
+  tags = {
+    environment = local.env
+    project     = "panpan"
+  }
+}
+
+resource "aws_s3_bucket" "content" {
+  bucket = "${local.prefix}-content"
+
+  tags = {
+    environment = local.env
+    project     = "panpan"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "content" {
+  bucket = aws_s3_bucket.content.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket" "artifacts" {
+  bucket = "${local.prefix}-artifacts"
+
+  tags = {
+    environment = local.env
+    project     = "panpan"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "artifacts" {
+  bucket = aws_s3_bucket.artifacts.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# ─── IAM ────────────────────────────────────────────────────────────────────
+
+resource "aws_iam_role" "lambda_exec" {
+  name = "${local.prefix}-lambda-exec"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "lambda.amazonaws.com"
-        }
-      }
-    ]
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "lambda.amazonaws.com" }
+    }]
   })
 
   tags = {
-    environment = terraform.workspace
-    project     = var.project_name
-  }
-
-  # Ignore changes to the role name if it already exists
-  lifecycle {
-    ignore_changes = [name]
+    environment = local.env
+    project     = "panpan"
   }
 }
 
-# IAM policy for Lambda to access S3
-resource "aws_iam_role_policy" "lambda_s3_policy" {
-  name = "${var.project_name}-lambda-s3-policy-${terraform.workspace}"
-  role = aws_iam_role.lambda_role.id
+resource "aws_iam_role_policy" "lambda_policy" {
+  name = "${local.prefix}-lambda-policy"
+  role = aws_iam_role.lambda_exec.id
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
         Effect = "Allow"
-        Action = [
-          "s3:GetObject"
+        Action = ["s3:GetObject", "s3:PutObject"]
+        Resource = [
+          "${aws_s3_bucket.content.arn}/*",
+          "${aws_s3_bucket.artifacts.arn}/*",
         ]
-        Resource = "${module.s3_bucket.s3_bucket_arn}/*"
       },
       {
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ]
+        Effect   = "Allow"
+        Action   = ["sqs:SendMessage", "sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"]
+        Resource = aws_sqs_queue.orders.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:Query", "dynamodb:BatchWriteItem"]
+        Resource = [aws_dynamodb_table.orders.arn, "${aws_dynamodb_table.orders.arn}/index/*"]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = "arn:aws:logs:*:*:*"
       }
     ]
   })
+}
 
-  # Ignore changes to the policy name if it already exists
+# ─── Lambda Layer (shared) ───────────────────────────────────────────────────
+
+resource "aws_lambda_layer_version" "shared" {
+  layer_name          = "${local.prefix}-shared-layer"
+  filename            = "../dist/shared-layer.zip"
+  compatible_runtimes = [var.lambda_runtime]
+
   lifecycle {
-    ignore_changes = [name]
+    ignore_changes = [filename]
   }
 }
 
-# Attach basic Lambda execution policy
-resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
-  role       = aws_iam_role.lambda_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
+# ─── Lambda: api ─────────────────────────────────────────────────────────────
 
-# Data source to check if S3 object exists
-data "aws_s3_object" "lambda_package" {
-  bucket = module.s3_bucket.s3_bucket_id
-  key    = "lambda_test.zip"
-}
-
-module "lambda_function_from_s3_zip_file" {
-  source = "terraform-aws-modules/lambda/aws"
-
-  function_name = "${var.project_name}-lambda-${terraform.workspace}"
-  description   = "Test lambda function for ${var.project_name} in ${terraform.workspace}"
-  handler       = var.lambda_handler
+resource "aws_lambda_function" "api" {
+  function_name = "${local.prefix}-api"
+  role          = aws_iam_role.lambda_exec.arn
+  handler       = "handler.lambda_handler"
   runtime       = var.lambda_runtime
-  lambda_role   = aws_iam_role.lambda_role.arn
+  timeout       = 30
+  memory_size   = 512
 
-  create_package      = false
-  s3_existing_package = {
-    bucket = module.s3_bucket.s3_bucket_id
-    key    = "lambda_test.zip"
+  filename         = "../dist/api.zip"
+  source_code_hash = filebase64sha256("../dist/api.zip")
+
+  layers = [aws_lambda_layer_version.shared.arn]
+
+  environment {
+    variables = {
+      PANPAN_ENV         = local.env
+      PANPAN_TABLE_NAME  = aws_dynamodb_table.orders.name
+      PANPAN_BUCKET_NAME = aws_s3_bucket.content.id
+      PANPAN_QUEUE_URL   = aws_sqs_queue.orders.url
+    }
   }
 
-  # Add environment variables if needed
-  environment_variables = {
-    ENVIRONMENT = terraform.workspace
-    PROJECT     = var.project_name
-  }
-
-  # Add tags
   tags = {
-    environment = terraform.workspace
-    project     = var.project_name
+    environment = local.env
+    project     = "panpan"
   }
 
-  depends_on = [
-    module.s3_bucket,
-    aws_iam_role_policy.lambda_s3_policy,
-    data.aws_s3_object.lambda_package
-  ]
+  lifecycle {
+    ignore_changes = [filename, source_code_hash]
+  }
+}
+
+# ─── Lambda: send-email ───────────────────────────────────────────────────────
+
+resource "aws_lambda_function" "send_email" {
+  function_name = "${local.prefix}-send-email"
+  role          = aws_iam_role.lambda_exec.arn
+  handler       = "handler.lambda_handler"
+  runtime       = var.lambda_runtime
+  timeout       = 60
+
+  filename         = "../dist/send-email.zip"
+  source_code_hash = filebase64sha256("../dist/send-email.zip")
+
+  layers = [aws_lambda_layer_version.shared.arn]
+
+  environment {
+    variables = {
+      PANPAN_ENV           = local.env
+      PANPAN_TABLE_NAME    = aws_dynamodb_table.orders.name
+      PANPAN_FROM_EMAIL    = var.panpan_from_email
+      PANPAN_GMAIL_PASSWORD = var.panpan_gmail_password
+    }
+  }
+
+  tags = {
+    environment = local.env
+    project     = "panpan"
+  }
+
+  lifecycle {
+    ignore_changes = [filename, source_code_hash]
+  }
+}
+
+resource "aws_lambda_event_source_mapping" "sqs_to_send_email" {
+  event_source_arn = aws_sqs_queue.orders.arn
+  function_name    = aws_lambda_function.send_email.arn
+  batch_size       = 1
+}
+
+# ─── API Gateway ─────────────────────────────────────────────────────────────
+
+resource "aws_apigatewayv2_api" "main" {
+  name          = "${local.prefix}-api"
+  protocol_type = "HTTP"
+
+  cors_configuration {
+    allow_origins = ["*"]
+    allow_methods = ["GET", "POST", "OPTIONS"]
+    allow_headers = ["Content-Type"]
+  }
+
+  tags = {
+    environment = local.env
+    project     = "panpan"
+  }
+}
+
+resource "aws_apigatewayv2_integration" "api_lambda" {
+  api_id                 = aws_apigatewayv2_api.main.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.api.invoke_arn
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_route" "proxy" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "$default"
+  target    = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+}
+
+resource "aws_apigatewayv2_stage" "default" {
+  api_id      = aws_apigatewayv2_api.main.id
+  name        = "$default"
+  auto_deploy = true
+
+  tags = {
+    environment = local.env
+    project     = "panpan"
+  }
+}
+
+resource "aws_lambda_permission" "apigw" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.api.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
 }
