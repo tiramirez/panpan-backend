@@ -3,7 +3,6 @@
 **/.env
 
 ## TESTING
-**/test*.py
 .pytest*
 __pycache__/
 
