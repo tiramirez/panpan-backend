@@ -57,6 +57,22 @@ To add a new secret variable:
 
 ## Terraform
 
+### Bootstrap (first time only)
+
+The Terraform state bucket must be created manually before `terraform init` can run — this is a one-time step per AWS account:
+
+```bash
+aws s3api create-bucket \
+  --bucket panpan-terraform-state \
+  --region us-east-1
+
+aws s3api put-bucket-versioning \
+  --bucket panpan-terraform-state \
+  --versioning-configuration Status=Enabled
+```
+
+### Usage
+
 ```bash
 cd terraform
 terraform init -backend-config="key=terraform/<workspace>/terraform.tfstate"

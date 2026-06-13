@@ -173,8 +173,7 @@ resource "aws_lambda_function" "api" {
   timeout       = 30
   memory_size   = 512
 
-  filename         = "../dist/api.zip"
-  source_code_hash = filebase64sha256("../dist/api.zip")
+  filename = "../dist/api.zip"
 
   layers = [aws_lambda_layer_version.shared.arn]
 
@@ -206,8 +205,7 @@ resource "aws_lambda_function" "send_email" {
   runtime       = var.lambda_runtime
   timeout       = 60
 
-  filename         = "../dist/send-email.zip"
-  source_code_hash = filebase64sha256("../dist/send-email.zip")
+  filename = "../dist/send-email.zip"
 
   layers = [aws_lambda_layer_version.shared.arn]
 
