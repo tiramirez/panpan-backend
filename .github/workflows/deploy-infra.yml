@@ -1,0 +1,82 @@
+name: Terraform Plan and Apply
+
+on:
+  push:
+    branches: [develop, prod]
+
+jobs:
+  terraform:
+    name: Terraform ${{ github.ref_name == 'prod' && 'prod' || 'dev' }}
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'prod' && 'prod' || 'dev' }}
+
+    permissions:
+      id-token: write
+      contents: read
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./terraform
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build Lambda artifacts
+        working-directory: .
+        run: bash scripts/build.sh all
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Set environment name
+        id: env
+        run: |
+          if [ "${{ github.ref_name }}" = "prod" ]; then
+            echo "name=prod" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=dev" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Terraform Init
+        run: terraform init -backend-config="key=terraform/${{ steps.env.outputs.name }}/terraform.tfstate"
+
+      - name: Select workspace
+        run: terraform workspace select ${{ steps.env.outputs.name }} || terraform workspace new ${{ steps.env.outputs.name }}
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Load secrets from Secrets Manager
+        id: secrets
+        run: |
+          ENV=${{ steps.env.outputs.name }}
+          SECRET=$(aws secretsmanager get-secret-value \
+            --secret-id panpan/${ENV}/terraform \
+            --query SecretString --output text)
+          echo "panpan_gmail_password=$(echo $SECRET | jq -r '.panpan_gmail_password')" >> "$GITHUB_OUTPUT"
+
+      - name: Terraform Plan
+        env:
+          TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
+          TF_VAR_panpan_gmail_password: ${{ steps.secrets.outputs.panpan_gmail_password }}
+        run: terraform plan -var-file=environments/${{ steps.env.outputs.name }}.tfvars -out=tfplan
+
+      - name: Terraform Apply
+        env:
+          TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
+          TF_VAR_panpan_gmail_password: ${{ steps.secrets.outputs.panpan_gmail_password }}
+        run: terraform apply tfplan
