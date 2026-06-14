@@ -10,7 +10,7 @@ from shared.s3 import read_json
 from shared.logger import get_logger
 
 router = APIRouter()
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 def get_long_name(row):
@@ -94,6 +94,7 @@ def weekly_orders(week: str):
             .astype(str)
         )
 
+        logger.info("Returning weekly orders for week %s: %d rows", week, len(df))
         return {"ok": True, "data": df.fillna("").to_dict()}
 
     except Exception as e:

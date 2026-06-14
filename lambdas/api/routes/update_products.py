@@ -9,7 +9,7 @@ from shared.s3 import put_bytes
 from shared.logger import get_logger
 
 router = APIRouter()
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 @router.post("/update-products")

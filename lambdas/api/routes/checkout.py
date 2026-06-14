@@ -11,7 +11,7 @@ from shared.s3 import read_json
 from shared.logger import get_logger
 
 router = APIRouter()
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 class CheckoutRequest(BaseModel):
@@ -33,6 +33,7 @@ def checkout(body: dict):
         days_since_update = (now - updated_at).days
 
         if days_since_update > 3:
+            logger.info("Store is closed (newsletter last updated %d days ago)", days_since_update)
             return {
                 "message": "Successful POST Execution",
                 "title": "We are closed",
@@ -50,6 +51,7 @@ def checkout(body: dict):
             }),
         )
 
+        logger.info("Order %s queued successfully", order_id)
         return {
             "message": "Successful POST Execution",
             "title": "Congratulations!",
