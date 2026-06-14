@@ -133,6 +133,14 @@ resource "aws_iam_role_policy" "lambda_policy" {
         ]
       },
       {
+        Effect = "Allow"
+        Action = ["s3:ListBucket"]
+        Resource = [
+          aws_s3_bucket.content.arn,
+          aws_s3_bucket.artifacts.arn,
+        ]
+      },
+      {
         Effect   = "Allow"
         Action   = ["sqs:SendMessage", "sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"]
         Resource = aws_sqs_queue.orders.arn
