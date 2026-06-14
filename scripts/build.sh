@@ -9,8 +9,8 @@ mkdir -p "$DIST"
 build_layer() {
   echo "Building shared layer..."
   TMP=$(mktemp -d)
-  mkdir -p "$TMP/python"
-  cp -r "$ROOT/lambdas/shared/"* "$TMP/python/"
+  mkdir -p "$TMP/python/shared"
+  cp -r "$ROOT/lambdas/shared/"* "$TMP/python/shared/"
   (cd "$TMP" && zip -r "$DIST/shared-layer.zip" python/)
   rm -rf "$TMP"
   echo "  -> dist/shared-layer.zip"
