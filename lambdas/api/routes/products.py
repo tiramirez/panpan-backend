@@ -19,5 +19,5 @@ def get_products():
         logger.info("Fetched %d products", len(data.get("Items", [])))
         return {"ok": True, "data": data}
     except Exception as e:
-        logger.error(f"Error fetching products: {e}")
+        logger.exception("Error fetching products: %s", e)
         return {"ok": False, "error": str(e)}

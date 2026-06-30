@@ -98,5 +98,5 @@ def weekly_orders(week: str):
         return {"ok": True, "data": df.fillna("").to_dict()}
 
     except Exception as e:
-        logger.exception(f"Error in weekly_orders: {e}")
+        logger.exception("Error in weekly_orders: %s", e)
         return {"error": "Error processing weekly orders", "details": str(e)}

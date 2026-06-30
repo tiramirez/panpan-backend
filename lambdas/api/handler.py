@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 from routes import checkout, weekly_orders, update_products, products, newsletter
 
+logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="panpan-api")
@@ -27,4 +28,7 @@ handler = Mangum(app, lifespan="off")
 
 
 def lambda_handler(event, context):
+    method = event.get("httpMethod") or event.get("requestContext", {}).get("http", {}).get("method", "UNKNOWN")
+    path = event.get("path") or event.get("rawPath", "UNKNOWN")
+    logger.info("Request: %s %s", method, path)
     return handler(event, context)

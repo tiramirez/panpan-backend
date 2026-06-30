@@ -16,7 +16,8 @@ def get_newsletter():
         bucket = os.environ["PANPAN_BUCKET_NAME"]
         s3 = boto3.client("s3")
         data = read_json(s3, bucket, "newsletter.json")
+        logger.info("Fetched newsletter (updated_at=%s)", data.get("updated_at"))
         return {"ok": True, "data": data}
     except Exception as e:
-        logger.error(f"Error fetching newsletter: {e}")
+        logger.exception("Error fetching newsletter: %s", e)
         return {"ok": False, "error": str(e)}

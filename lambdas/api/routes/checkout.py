@@ -58,7 +58,7 @@ def checkout(body: dict):
             "body": f"We received your order #{str(order_id)[:6].upper()}. Thank you for placing an order with Pan Pan. A confirmation email will be sent to the email address you provided.",
         }
     except Exception as e:
-        logger.error(f"Checkout error: {e}")
+        logger.exception("Checkout error: %s", e)
         return {
             "message": "ERROR POST Execution",
             "title": "We are sorry! :(",
