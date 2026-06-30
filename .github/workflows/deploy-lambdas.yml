@@ -104,26 +104,17 @@ jobs:
             --query LayerVersionArn --output text)
           echo "arn=${LAYER_ARN}" >> "$GITHUB_OUTPUT"
 
-      - name: Update api layer reference
-        if: needs.detect-changes.outputs.shared == 'true'
-        run: |
-          ENV=${{ steps.env.outputs.name }}
-          aws lambda update-function-configuration \
-            --function-name panpan-${ENV}-api \
-            --layers ${{ steps.deploy-layer.outputs.arn }}
-
-      - name: Update send-email layer reference
-        if: needs.detect-changes.outputs.shared == 'true'
-        run: |
-          ENV=${{ steps.env.outputs.name }}
-          aws lambda update-function-configuration \
-            --function-name panpan-${ENV}-send-email \
-            --layers ${{ steps.deploy-layer.outputs.arn }}
-
       - name: Deploy api lambda
         if: needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.shared == 'true'
         run: |
           ENV=${{ steps.env.outputs.name }}
+          LAYER_ARN=$(aws lambda list-layer-versions \
+            --layer-name panpan-${ENV}-shared-layer \
+            --query 'LayerVersions[0].LayerVersionArn' --output text)
+          aws lambda wait function-updated --function-name panpan-${ENV}-api
+          aws lambda update-function-configuration \
+            --function-name panpan-${ENV}-api \
+            --layers "$LAYER_ARN"
           aws lambda wait function-updated --function-name panpan-${ENV}-api
           aws lambda update-function-code \
             --function-name panpan-${ENV}-api \
@@ -134,6 +125,13 @@ jobs:
         if: needs.detect-changes.outputs['send-email'] == 'true' || needs.detect-changes.outputs.shared == 'true'
         run: |
           ENV=${{ steps.env.outputs.name }}
+          LAYER_ARN=$(aws lambda list-layer-versions \
+            --layer-name panpan-${ENV}-shared-layer \
+            --query 'LayerVersions[0].LayerVersionArn' --output text)
+          aws lambda wait function-updated --function-name panpan-${ENV}-send-email
+          aws lambda update-function-configuration \
+            --function-name panpan-${ENV}-send-email \
+            --layers "$LAYER_ARN"
           aws lambda wait function-updated --function-name panpan-${ENV}-send-email
           aws lambda update-function-code \
             --function-name panpan-${ENV}-send-email \

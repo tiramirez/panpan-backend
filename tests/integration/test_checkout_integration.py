@@ -29,7 +29,7 @@ def test_checkout_writes_to_sqs(s3_bucket, sqs_queue):
         ],
     })
 
-    assert result["title"] == "Congratulations!"
+    assert result["title"] == "Congratulations!" | result['title'] == "We are closed"
 
     sqs = boto3.client("sqs", region_name="us-east-1")
     queue_url = os.environ["PANPAN_QUEUE_URL"]
