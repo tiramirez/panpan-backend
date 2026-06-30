@@ -2,6 +2,7 @@ import json
 import sys
 import os
 import pytest
+from datetime import datetime, UTC, timedelta
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../lambdas/shared"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../lambdas/api"))
@@ -12,7 +13,7 @@ def test_checkout_writes_to_sqs(s3_bucket, sqs_queue):
     s3_bucket.put_object(
         Bucket="panpan-test-content",
         Key="newsletter.json",
-        Body=json.dumps({"updated_at": "2026-06-12T10:00:00"}).encode(),
+        Body=json.dumps({"updated_at": datetime.now(tz=UTC).strftime("%Y-%m-%dT%H:%M:%S")}).encode(),
     )
 
     from routes.checkout import checkout

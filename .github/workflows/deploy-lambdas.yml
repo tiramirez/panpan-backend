@@ -124,6 +124,7 @@ jobs:
         if: needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.shared == 'true'
         run: |
           ENV=${{ steps.env.outputs.name }}
+          aws lambda wait function-updated --function-name panpan-${ENV}-api
           aws lambda update-function-code \
             --function-name panpan-${ENV}-api \
             --s3-bucket panpan-${ENV}-artifacts \
@@ -133,6 +134,7 @@ jobs:
         if: needs.detect-changes.outputs['send-email'] == 'true' || needs.detect-changes.outputs.shared == 'true'
         run: |
           ENV=${{ steps.env.outputs.name }}
+          aws lambda wait function-updated --function-name panpan-${ENV}-send-email
           aws lambda update-function-code \
             --function-name panpan-${ENV}-send-email \
             --s3-bucket panpan-${ENV}-artifacts \
