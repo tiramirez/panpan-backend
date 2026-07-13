@@ -32,6 +32,7 @@ def lambda_handler(event, context):
             str_products += f"* ({product.get('product_quantity')} x ${float(product.get('unit_price')):5.2f}) - {product.get('product_name')}\n"
             subtotal += float(product.get("unit_price")) * float(product.get("product_quantity"))
 
+        additional_emails = order.get("additionalEmails", [])
         confirmation_email.send_email(
             email=email,
             order_id=short_id,
@@ -39,8 +40,9 @@ def lambda_handler(event, context):
             donation=order.get("donation"),
             service_fee=service_fee,
             str_products=str_products,
+            cc=additional_emails,
         )
-        logger.info(f"Confirmation email sent to: {email}")
+        logger.info(f"Confirmation email sent to: {email}, cc={additional_emails}")
 
         return {"statusCode": 200, "body": json.dumps(f"Confirmation email sent. Order ID {short_id}")}
 

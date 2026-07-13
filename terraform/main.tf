@@ -18,36 +18,6 @@ resource "aws_dynamodb_table" "orders" {
     name = "SK"
     type = "S"
   }
-  attribute {
-    name = "GSI1-PK"
-    type = "S"
-  }
-  attribute {
-    name = "GSI1-SK"
-    type = "S"
-  }
-  attribute {
-    name = "GSI2-PK"
-    type = "S"
-  }
-  attribute {
-    name = "GSI2-SK"
-    type = "S"
-  }
-
-  global_secondary_index {
-    name            = "GSI1"
-    hash_key        = "GSI1-PK"
-    range_key       = "GSI1-SK"
-    projection_type = "ALL"
-  }
-
-  global_secondary_index {
-    name            = "GSI2"
-    hash_key        = "GSI2-PK"
-    range_key       = "GSI2-SK"
-    projection_type = "ALL"
-  }
 
   tags = {
     environment = local.env
@@ -147,7 +117,7 @@ resource "aws_iam_role_policy" "lambda_policy" {
       },
       {
         Effect   = "Allow"
-        Action   = ["dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:Query", "dynamodb:BatchWriteItem"]
+        Action   = ["dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:Query", "dynamodb:UpdateItem"]
         Resource = [aws_dynamodb_table.orders.arn, "${aws_dynamodb_table.orders.arn}/index/*"]
       },
       {
