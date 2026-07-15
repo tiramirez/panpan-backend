@@ -416,6 +416,7 @@ resource "aws_cloudwatch_dashboard" "panpan" {
         width  = 12
         height = 6
         properties = {
+          region  = var.aws_region
           title   = "Orders per hour"
           view    = "bar"
           stat    = "Sum"
@@ -434,6 +435,7 @@ resource "aws_cloudwatch_dashboard" "panpan" {
         width  = 12
         height = 6
         properties = {
+          region  = var.aws_region
           title   = "Order funnel (last 24h)"
           view    = "singleValue"
           stat    = "Sum"
@@ -452,6 +454,7 @@ resource "aws_cloudwatch_dashboard" "panpan" {
         width  = 12
         height = 6
         properties = {
+          region  = var.aws_region
           title   = "Errors & failures"
           view    = "timeSeries"
           stat    = "Sum"
@@ -469,6 +472,7 @@ resource "aws_cloudwatch_dashboard" "panpan" {
         width  = 12
         height = 6
         properties = {
+          region  = var.aws_region
           title   = "Menu traffic"
           view    = "timeSeries"
           stat    = "Sum"
@@ -485,6 +489,7 @@ resource "aws_cloudwatch_dashboard" "panpan" {
         width  = 12
         height = 6
         properties = {
+          region  = var.aws_region
           title   = "Device registrations (experiment)"
           view    = "timeSeries"
           stat    = "Sum"
