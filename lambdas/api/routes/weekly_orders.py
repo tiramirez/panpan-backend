@@ -7,7 +7,7 @@ from fastapi import APIRouter
 
 from shared.dynamo import query_with_pagination
 from shared.s3 import read_json
-from shared.logger import get_logger
+from shared.logger import get_logger, log_event
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -93,7 +93,9 @@ def weekly_orders(week: str):
             .astype(str)
         )
 
-        logger.info("Returning weekly orders for week %s: %d rows", week, len(df))
+        order_count = len(df)
+        logger.info("Returning weekly orders for week %s: %d rows", week, order_count)
+        log_event(logger, "weekly_orders_queried", week=week, order_count=order_count)
         return {"ok": True, "data": df.fillna("").to_dict()}
 
     except Exception as e:

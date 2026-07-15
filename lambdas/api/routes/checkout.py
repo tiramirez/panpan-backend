@@ -8,7 +8,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from shared.s3 import read_json
-from shared.logger import get_logger
+from shared.logger import get_logger, log_event
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -34,6 +34,7 @@ def checkout(body: dict):
 
         if days_since_update > 3:
             logger.info("Store is closed (newsletter last updated %d days ago)", days_since_update)
+            log_event(logger, "checkout_rejected", days_since_update=days_since_update)
             return {
                 "message": "Successful POST Execution",
                 "title": "We are closed",
@@ -52,6 +53,7 @@ def checkout(body: dict):
         )
 
         logger.info("Order %s queued successfully", order_id)
+        log_event(logger, "checkout_completed", order_id=order_id, product_count=len(body.get("products", [])), menu_version=update_str)
         return {
             "message": "Successful POST Execution",
             "title": "Congratulations!",
@@ -59,6 +61,7 @@ def checkout(body: dict):
         }
     except Exception as e:
         logger.exception("Checkout error: %s", e)
+        log_event(logger, "checkout_error", error_type=type(e).__name__)
         return {
             "message": "ERROR POST Execution",
             "title": "We are sorry! :(",

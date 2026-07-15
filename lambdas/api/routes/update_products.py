@@ -6,7 +6,7 @@ import boto3
 from fastapi import APIRouter
 
 from shared.s3 import put_bytes
-from shared.logger import get_logger
+from shared.logger import get_logger, log_event
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -38,6 +38,8 @@ def update_products(body: dict):
         s3 = boto3.client("s3")
         put_bytes(s3, bucket, file_name, data)
         logger.info("Updated %s in bucket %s", file_name, bucket)
+        event_name = "menu_updated" if file == "products_list" else "newsletter_updated"
+        log_event(logger, event_name, file=file)
         return {"message": "Successful POST Execution"}
 
     except Exception as e:

@@ -1,14 +1,13 @@
 import json
 
-import boto3
-from logger import get_logger
 import confirmation_email
 import process_order
+from shared.logger import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
-def lambda_handler(event, context):
+def lambda_handler(event, _context):
     try:
         body = event["Records"][0]["body"]
         if isinstance(body, str):

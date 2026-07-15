@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import boto3
 
-from logger import get_logger
+from shared.logger import get_logger, log_event
 
 logger = get_logger()
 
@@ -56,3 +56,4 @@ def save_order(order_id: str, order: dict, menu_version: str = "", **kwargs):
         "products": products_embedded,
     })
     logger.info("Saved order with %d embedded products", len(products_embedded))
+    log_event(logger, "order_saved", order_id=order_id, week=week_str, product_count=len(products_embedded))

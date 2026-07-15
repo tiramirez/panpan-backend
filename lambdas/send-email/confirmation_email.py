@@ -3,7 +3,7 @@ import re
 import smtplib
 from email.message import EmailMessage
 
-from logger import get_logger
+from shared.logger import get_logger, log_event
 
 logger = get_logger()
 
@@ -65,8 +65,10 @@ def send_email(email, order_id, order_subtotal, donation, service_fee, str_produ
     smtp.login(gmail_username, gmail_password)
     try:
         status = smtp.sendmail(msg["From"], [email] + cc, msg.as_string())
+        log_event(logger, "email_sent", order_id=order_id, email_domain=email.split("@")[-1])
     except Exception as e:
         logger.error(f"Error sending email: {e}")
+        log_event(logger, "email_failed", order_id=order_id, error_type=type(e).__name__)
         status = None
     logger.info(f"sendmail_status: {status}")
     smtp.quit()
