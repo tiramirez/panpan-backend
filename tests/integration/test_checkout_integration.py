@@ -2,7 +2,9 @@ import json
 import sys
 import os
 import pytest
-from datetime import datetime, UTC, timedelta
+from datetime import datetime, timezone, timedelta
+
+UTC = timezone.utc
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../lambdas/shared"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../lambdas/api"))
@@ -29,7 +31,7 @@ def test_checkout_writes_to_sqs(s3_bucket, sqs_queue):
         ],
     })
 
-    assert result["title"] == "Congratulations!" | result['title'] == "We are closed"
+    assert result["title"] == "Congratulations!" or result["title"] == "We are closed"
 
     sqs = boto3.client("sqs", region_name="us-east-1")
     queue_url = os.environ["PANPAN_QUEUE_URL"]

@@ -1,7 +1,9 @@
 import json
 import os
 import uuid
-from datetime import datetime, UTC
+from datetime import datetime, timezone
+
+UTC = timezone.utc
 
 import boto3
 from fastapi import APIRouter
