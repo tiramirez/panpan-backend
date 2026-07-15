@@ -161,6 +161,14 @@ resource "aws_lambda_function" "api" {
       PANPAN_TABLE_NAME  = aws_dynamodb_table.orders.name
       PANPAN_BUCKET_NAME = aws_s3_bucket.content.id
       PANPAN_QUEUE_URL   = aws_sqs_queue.orders.url
+      PANPAN_ACTIVE_EXPERIMENTS = jsonencode([
+      # Item type:
+      # {
+      #   id         = string          # unique slug — changing it resets all device assignments
+      #   variants   = list(string)    # S3 key suffixes, e.g. ["a","b"] → products_list_a.json / products_list_b.json
+      #   expires_at = string          # ISO 8601 UTC — backend ignores experiment after this time
+      # }
+      ])
     }
   }
 

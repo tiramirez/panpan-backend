@@ -54,6 +54,8 @@ def save_order(order_id: str, order: dict, menu_version: str = "", **kwargs):
         "products_total": order_total,
         "service_fee": Decimal(str(service_fee)),
         "products": products_embedded,
+        "variant": order.get("variant", "unknown"),
+        "device_id": order.get("device_id", "unknown"),
     })
     logger.info("Saved order with %d embedded products", len(products_embedded))
     log_event(logger, "order_saved", order_id=order_id, week=week_str, product_count=len(products_embedded))
