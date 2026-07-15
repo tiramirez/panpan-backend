@@ -272,6 +272,17 @@ resource "aws_lambda_permission" "apigw" {
 
 # ─── CloudWatch: Log Groups ───────────────────────────────────────────────────
 
+# These log groups were auto-created by Lambda before Terraform managed them.
+import {
+  to = aws_cloudwatch_log_group.api
+  id = "/aws/lambda/${local.prefix}-api"
+}
+
+import {
+  to = aws_cloudwatch_log_group.send_email
+  id = "/aws/lambda/${local.prefix}-send-email"
+}
+
 resource "aws_cloudwatch_log_group" "api" {
   name              = "/aws/lambda/${aws_lambda_function.api.function_name}"
   retention_in_days = 30
