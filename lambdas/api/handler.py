@@ -1,12 +1,10 @@
-import logging
-import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 from routes import checkout, weekly_orders, update_products, products, newsletter
+from shared.logger import get_logger
 
-logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 app = FastAPI(title="panpan-api")
 logger.info("panpan-api initializing")

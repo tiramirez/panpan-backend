@@ -32,28 +32,6 @@ def dynamodb_table(aws_mock):
         AttributeDefinitions=[
             {"AttributeName": "PK", "AttributeType": "S"},
             {"AttributeName": "SK", "AttributeType": "S"},
-            {"AttributeName": "GSI1-PK", "AttributeType": "S"},
-            {"AttributeName": "GSI1-SK", "AttributeType": "S"},
-            {"AttributeName": "GSI2-PK", "AttributeType": "S"},
-            {"AttributeName": "GSI2-SK", "AttributeType": "S"},
-        ],
-        GlobalSecondaryIndexes=[
-            {
-                "IndexName": "GSI1",
-                "KeySchema": [
-                    {"AttributeName": "GSI1-PK", "KeyType": "HASH"},
-                    {"AttributeName": "GSI1-SK", "KeyType": "RANGE"},
-                ],
-                "Projection": {"ProjectionType": "ALL"},
-            },
-            {
-                "IndexName": "GSI2",
-                "KeySchema": [
-                    {"AttributeName": "GSI2-PK", "KeyType": "HASH"},
-                    {"AttributeName": "GSI2-SK", "KeyType": "RANGE"},
-                ],
-                "Projection": {"ProjectionType": "ALL"},
-            },
         ],
         BillingMode="PAY_PER_REQUEST",
     )

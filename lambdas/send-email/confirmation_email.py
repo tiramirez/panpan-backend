@@ -3,7 +3,7 @@ import re
 import smtplib
 from email.message import EmailMessage
 
-from logger import get_logger
+from shared.logger import get_logger, log_event
 
 logger = get_logger()
 
@@ -40,8 +40,9 @@ TOTAL: ${float(order_subtotal) + float(donation) + float(service_fee):.2f}
 """.strip()
 
 
-def send_email(email, order_id, order_subtotal, donation, service_fee, str_products):
-    logger.info(f"Sending confirmation email to {email}, order {order_id}")
+def send_email(email, order_id, order_subtotal, donation, service_fee, str_products, cc=None):
+    cc = [a for a in (cc or []) if a]
+    logger.info(f"Sending confirmation email to {email}, cc={cc}, order {order_id}")
 
     email = clean_text(email)
     order_id = clean_text(order_id)
@@ -51,6 +52,8 @@ def send_email(email, order_id, order_subtotal, donation, service_fee, str_produ
     msg = EmailMessage()
     msg["From"] = "Pandemic Pantry <pandemicpantrywest@gmail.com>"
     msg["To"] = email
+    if cc:
+        msg["Cc"] = ", ".join(cc)
     msg["Subject"] = f"Your order was received: {order_id.upper()}"
     msg.set_payload(body, charset="utf-8")
 
@@ -61,9 +64,11 @@ def send_email(email, order_id, order_subtotal, donation, service_fee, str_produ
     gmail_password = os.environ["PANPAN_GMAIL_PASSWORD"]
     smtp.login(gmail_username, gmail_password)
     try:
-        status = smtp.sendmail(msg["From"], msg["To"], msg.as_string())
+        status = smtp.sendmail(msg["From"], [email] + cc, msg.as_string())
+        log_event(logger, "email_sent", order_id=order_id, email_domain=email.split("@")[-1])
     except Exception as e:
         logger.error(f"Error sending email: {e}")
+        log_event(logger, "email_failed", order_id=order_id, error_type=type(e).__name__)
         status = None
     logger.info(f"sendmail_status: {status}")
     smtp.quit()

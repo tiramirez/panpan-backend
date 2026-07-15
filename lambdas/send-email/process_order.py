@@ -1,18 +1,15 @@
 import os
 import datetime as dt
-import hashlib
-import uuid
 from decimal import Decimal
 
 import boto3
-import pandas as pd
 
-from logger import get_logger
+from shared.logger import get_logger, log_event
 
 logger = get_logger()
 
 
-def save_order(order_id: str, order: dict, **kwargs):
+def save_order(order_id: str, order: dict, menu_version: str = "", **kwargs):
     logger.info(f"Saving order #{order_id}")
 
     email = order.get("email")
@@ -24,8 +21,17 @@ def save_order(order_id: str, order: dict, **kwargs):
     service_fee = 4.0
     products = order.get("products")
 
-    df = pd.DataFrame(products)
-    order_total = df.assign(subtotal=df.product_quantity * df.unit_price).subtotal.sum()
+    products_embedded = [
+        {
+            "product_name": p["product_name"],
+            "product_quantity": int(p["product_quantity"]),
+            "unit_price": Decimal(str(p["unit_price"])),
+        }
+        for p in products
+    ]
+    order_total = sum(
+        p["product_quantity"] * p["unit_price"] for p in products_embedded
+    )
     date_str = dt.datetime.now().isoformat()
     week_str = dt.datetime.now().strftime("%G-%V")
 
@@ -34,37 +40,22 @@ def save_order(order_id: str, order: dict, **kwargs):
     table = dynamodb.Table(table_name)
 
     table.put_item(Item={
-        "PK": f"o#{order_id}",
-        "SK": f"u#{email}",
+        "PK": week_str,
+        "SK": f"o#{order_id}",
         "entity_type": "order",
-        "week_str": week_str,
         "created_at": date_str,
-        "donation": str(donation),
-        "products_total": Decimal(str(order_total)),
-        "service_fee": Decimal(str(service_fee)),
+        "menu_version": menu_version,
+        "email": email,
+        "phone": phone,
+        "firstName": first_name,
+        "lastName": last_name,
         "comments": comments,
-        "GSI2-PK": week_str,
-        "GSI2-SK": f"o#{order_id}",
+        "donation": str(donation),
+        "products_total": order_total,
+        "service_fee": Decimal(str(service_fee)),
+        "products": products_embedded,
+        "variant": order.get("variant", "unknown"),
+        "device_id": order.get("device_id", "unknown"),
     })
-    logger.info("Saved order details")
-
-    with table.batch_writer() as batch:
-        for i in range(df.shape[0]):
-            product_id = uuid.UUID(hex=hashlib.shake_128(
-                bytes(df.product_name[i], encoding="utf-8")
-            ).hexdigest(16))
-            batch.put_item(Item={
-                "PK": f"o#{order_id}",
-                "SK": f"p#{product_id}",
-                "entity_type": "order_product",
-                "product_name": df.product_name[i],
-                "product_quantity": str(df.product_quantity[i]),
-                "unit_price": Decimal(str(df.unit_price[i])),
-                "email": f"u#{email}",
-                "phone": f"u#{phone}",
-                "firstName": f"u#{first_name}",
-                "lastName": f"u#{last_name}",
-                "GSI1-PK": week_str,
-                "GSI1-SK": f"o#{order_id}#p#{product_id}",
-            })
-    logger.info("Saved order products")
+    logger.info("Saved order with %d embedded products", len(products_embedded))
+    log_event(logger, "order_saved", order_id=order_id, week=week_str, product_count=len(products_embedded))
