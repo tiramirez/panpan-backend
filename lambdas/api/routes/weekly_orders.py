@@ -1,16 +1,16 @@
-import json
 import os
 
 import boto3
 import pandas as pd
+from boto3.dynamodb.conditions import Key
 from fastapi import APIRouter
 
 from shared.dynamo import query_with_pagination
 from shared.s3 import read_json
-from shared.logger import get_logger
+from shared.logger import get_logger, log_event
 
 router = APIRouter()
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 def get_long_name(row):
@@ -39,26 +39,34 @@ def weekly_orders(week: str):
         dynamodb = boto3.resource("dynamodb")
         table = dynamodb.Table(table_name)
 
-        orders_items = query_with_pagination(table, {
-            "IndexName": "GSI1",
-            "KeyConditionExpression": "#index = :pk",
-            "ExpressionAttributeNames": {"#index": "GSI1-PK"},
-            "ExpressionAttributeValues": {":pk": str(week)},
+        items = query_with_pagination(table, {
+            "KeyConditionExpression": Key("PK").eq(str(week)) & Key("SK").begins_with("o#"),
         })
-        orders = pd.DataFrame(orders_items)
 
-        summary_items = query_with_pagination(table, {
-            "IndexName": "GSI2",
-            "KeyConditionExpression": "#index = :pk",
-            "ExpressionAttributeNames": {"#index": "GSI2-PK"},
-            "ExpressionAttributeValues": {":pk": str(week)},
-        })
-        summary = pd.DataFrame(summary_items)
+        new_columns = ["created_at", "menu_version", "email", "firstName", "lastName", "phone", "comments", "donation"] + list(products.name.sort_values().unique())
 
+        if not items:
+            return {"ok": True, "data": pd.DataFrame(columns=new_columns).to_dict()}
+
+        # Explode embedded products into one row per order+product for pivot
+        rows = []
+        for item in items:
+            for product in item.get("products", []):
+                rows.append({
+                    "order_id": item["SK"],
+                    "email": item.get("email", ""),
+                    "firstName": item.get("firstName", ""),
+                    "lastName": item.get("lastName", ""),
+                    "phone": item.get("phone", ""),
+                    "product_name": product["product_name"],
+                    "product_quantity": product["product_quantity"],
+                })
+
+        orders = pd.DataFrame(rows)
         df = (
             orders
             .pivot_table(
-                index=["PK", "email", "firstName", "lastName", "phone"],
+                index=["order_id", "email", "firstName", "lastName", "phone"],
                 columns="product_name",
                 aggfunc={"product_quantity": "sum"},
             )
@@ -67,21 +75,12 @@ def weekly_orders(week: str):
             .fillna("")
         )
 
+        item_df = pd.DataFrame(items).set_index("SK")
         for col in ["created_at", "donation", "comments", "menu_version"]:
-            df[col] = df.astype({"PK": str}).PK.map(
-                summary.astype({"PK": str}).set_index("PK")[col].to_dict()
-            )
+            df[col] = df["order_id"].map(item_df.get(col, pd.Series(dtype=str)).to_dict())
 
-        df["email"] = df.email.str.replace("u#", "")
-        df["firstName"] = df.firstName.str.replace("u#", "")
-        df["lastName"] = df.lastName.str.replace("u#", "")
-        df["phone"] = df.phone.str.replace("u#", "")
-
-        new_columns = ["created_at", "menu_version", "email", "firstName", "lastName", "phone", "comments", "donation"] + list(products.name.sort_values().unique())
-        if "tip" in summary.columns:
-            df["tip"] = df.astype({"PK": str}).PK.map(
-                summary.astype({"PK": str}).set_index("PK").tip.to_dict()
-            ).astype(float).round(2)
+        if "tip" in item_df.columns:
+            df["tip"] = df["order_id"].map(item_df["tip"].to_dict())
             new_columns = ["created_at", "menu_version", "email", "firstName", "lastName", "phone", "comments", "donation", "tip"] + list(products.name.sort_values().unique())
 
         df = pd.concat([pd.DataFrame(columns=new_columns), df])
@@ -94,8 +93,11 @@ def weekly_orders(week: str):
             .astype(str)
         )
 
+        order_count = len(df)
+        logger.info("Returning weekly orders for week %s: %d rows", week, order_count)
+        log_event(logger, "weekly_orders_queried", week=week, order_count=order_count)
         return {"ok": True, "data": df.fillna("").to_dict()}
 
     except Exception as e:
-        logger.exception(f"Error in weekly_orders: {e}")
+        logger.exception("Error in weekly_orders: %s", e)
         return {"error": "Error processing weekly orders", "details": str(e)}

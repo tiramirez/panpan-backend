@@ -2,6 +2,7 @@ import json
 import sys
 import os
 import pytest
+from datetime import datetime, timezone, timedelta
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../lambdas/shared"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../lambdas/api"))
@@ -23,12 +24,15 @@ def make_checkout_body():
     }
 
 
+def _updated_at(days_ago):
+    return (datetime.now(tz=timezone.utc) - timedelta(days=days_ago)).strftime("%Y-%m-%dT%H:%M:%S")
+
+
 def test_checkout_success(s3_bucket, sqs_queue):
-    import json
     s3_bucket.put_object(
         Bucket="panpan-test-content",
         Key="newsletter.json",
-        Body=json.dumps({"updated_at": "2026-06-12T10:00:00"}).encode(),
+        Body=json.dumps({"updated_at": _updated_at(1)}).encode(),
     )
 
     from routes.checkout import checkout
@@ -37,11 +41,10 @@ def test_checkout_success(s3_bucket, sqs_queue):
 
 
 def test_checkout_closed(s3_bucket, sqs_queue):
-    import json
     s3_bucket.put_object(
         Bucket="panpan-test-content",
         Key="newsletter.json",
-        Body=json.dumps({"updated_at": "2026-06-01T10:00:00"}).encode(),
+        Body=json.dumps({"updated_at": _updated_at(5)}).encode(),
     )
 
     from routes.checkout import checkout
