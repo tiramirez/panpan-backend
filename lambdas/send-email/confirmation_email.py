@@ -46,6 +46,11 @@ def send_email(email, order_id, order_subtotal, donation, service_fee, str_produ
 
     email = clean_text(email)
     order_id = clean_text(order_id)
+
+    if not email or not email.strip() or "@" not in email:
+        raise ValueError(f"Invalid recipient email: {email!r}")
+    if not order_id or not order_id.strip():
+        raise ValueError(f"Invalid order_id: {order_id!r}")
     str_products = clean_text(str_products)
     body = clean_text(email_body_template(order_id, order_subtotal, donation, service_fee, str_products))
 
