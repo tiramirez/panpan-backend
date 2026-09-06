@@ -3,14 +3,14 @@ import os
 import uuid
 from datetime import datetime, timezone
 
-UTC = timezone.utc
-
-import boto3
+from boto3 import client
 from fastapi import APIRouter
 from pydantic import BaseModel
 
 from shared.s3 import read_json
 from shared.logger import get_logger, log_event
+
+UTC = timezone.utc
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -27,7 +27,7 @@ def checkout(body: dict):
         bucket = os.environ["PANPAN_BUCKET_NAME"]
         queue_url = os.environ["PANPAN_QUEUE_URL"]
 
-        s3 = boto3.client("s3")
+        s3 = client("s3")
         newsletter = read_json(s3, bucket, "newsletter.json")
         update_str = newsletter.get("updated_at")
         updated_at = datetime.fromisoformat(update_str + "+00:00")
@@ -44,7 +44,7 @@ def checkout(body: dict):
             }
 
         order_id = str(uuid.uuid4())
-        sqs = boto3.client("sqs")
+        sqs = client("sqs")
         sqs.send_message(
             QueueUrl=queue_url,
             MessageBody=json.dumps({

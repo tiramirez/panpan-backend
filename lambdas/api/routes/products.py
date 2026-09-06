@@ -3,7 +3,7 @@ import json
 import os
 from typing import Optional
 
-import boto3
+from boto3 import client, resource
 from fastapi import APIRouter, Query
 
 from shared.s3 import read_json
@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 def get_products(did: str = Query(default=None)):
     try:
         bucket = os.environ["PANPAN_BUCKET_NAME"]
-        s3 = boto3.client("s3")
+        s3 = client("s3")
 
         experiment = _get_active_experiment()
         variant = None
@@ -66,7 +66,7 @@ def _get_active_experiment():
 
 
 def _assign_variant(device_id: str, experiment: dict) -> str:
-    table = boto3.resource("dynamodb").Table(os.environ["PANPAN_TABLE_NAME"])
+    table = resource("dynamodb").Table(os.environ["PANPAN_TABLE_NAME"])
     exp_id = experiment["id"]
 
     item = table.get_item(
@@ -101,7 +101,7 @@ def _assign_variant(device_id: str, experiment: dict) -> str:
 def _track_impression(device_id: str, variant: str, experiment: Optional[dict]):
     try:
         week_str = datetime.datetime.now().strftime("%G-%V")
-        table = boto3.resource("dynamodb").Table(os.environ["PANPAN_TABLE_NAME"])
+        table = resource("dynamodb").Table(os.environ["PANPAN_TABLE_NAME"])
         item = {
             "PK": week_str,
             "SK": f"ev#{device_id}",
