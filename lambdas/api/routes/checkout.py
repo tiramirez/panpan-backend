@@ -34,7 +34,7 @@ def checkout(body: dict):
         now = datetime.now(tz=UTC)
         days_since_update = (now - updated_at).days
 
-        if days_since_update > 3:
+        if days_since_update > 3 and os.environ["PANPAN_ENV"] != "dev":
             logger.info("Store is closed (newsletter last updated %d days ago)", days_since_update)
             log_event(logger, "checkout_rejected", days_since_update=days_since_update)
             return {

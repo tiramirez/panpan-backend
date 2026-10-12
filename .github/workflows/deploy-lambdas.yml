@@ -108,9 +108,14 @@ jobs:
         if: needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.shared == 'true'
         run: |
           ENV=${{ steps.env.outputs.name }}
-          LAYER_ARN=$(aws lambda list-layer-versions \
-            --layer-name panpan-${ENV}-shared-layer \
-            --query 'LayerVersions[0].LayerVersionArn' --output text)
+          # Prefer the version published in this run; otherwise use the latest existing one
+          LAYER_ARN="${{ steps.deploy-layer.outputs.arn }}"
+          if [ -z "$LAYER_ARN" ]; then
+            LAYER_ARN=$(aws lambda list-layer-versions \
+              --layer-name panpan-${ENV}-shared-layer \
+              --query 'LayerVersions[0].LayerVersionArn' --output text)
+          fi
+          echo "Attaching layer: $LAYER_ARN"
           aws lambda wait function-updated --function-name panpan-${ENV}-api
           aws lambda update-function-configuration \
             --function-name panpan-${ENV}-api \
@@ -125,9 +130,14 @@ jobs:
         if: needs.detect-changes.outputs['send-email'] == 'true' || needs.detect-changes.outputs.shared == 'true'
         run: |
           ENV=${{ steps.env.outputs.name }}
-          LAYER_ARN=$(aws lambda list-layer-versions \
-            --layer-name panpan-${ENV}-shared-layer \
-            --query 'LayerVersions[0].LayerVersionArn' --output text)
+          # Prefer the version published in this run; otherwise use the latest existing one
+          LAYER_ARN="${{ steps.deploy-layer.outputs.arn }}"
+          if [ -z "$LAYER_ARN" ]; then
+            LAYER_ARN=$(aws lambda list-layer-versions \
+              --layer-name panpan-${ENV}-shared-layer \
+              --query 'LayerVersions[0].LayerVersionArn' --output text)
+          fi
+          echo "Attaching layer: $LAYER_ARN"
           aws lambda wait function-updated --function-name panpan-${ENV}-send-email
           aws lambda update-function-configuration \
             --function-name panpan-${ENV}-send-email \

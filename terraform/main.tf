@@ -178,7 +178,8 @@ resource "aws_lambda_function" "api" {
   }
 
   lifecycle {
-    ignore_changes = [filename, source_code_hash]
+    # Layer version is managed by the deploy-lambdas workflow (publish-layer-version)
+    ignore_changes = [filename, source_code_hash, layers]
   }
 }
 
@@ -210,7 +211,8 @@ resource "aws_lambda_function" "send_email" {
   }
 
   lifecycle {
-    ignore_changes = [filename, source_code_hash]
+    # Layer version is managed by the deploy-lambdas workflow (publish-layer-version)
+    ignore_changes = [filename, source_code_hash, layers]
   }
 }
 
