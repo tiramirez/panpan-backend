@@ -8,10 +8,23 @@ from shared.logger import get_logger, log_event
 logger = get_logger()
 
 
+_WEIRD_WHITESPACE_RE = re.compile(
+    "["
+    "\u00a0"  # no-break space
+    "\u1680"  # ogham space mark
+    "\u2000-\u200b"  # en quad .. zero-width space
+    "\u202f"  # narrow no-break space
+    "\u205f"  # medium mathematical space
+    "\u3000"  # ideographic space
+    "\ufeff"  # zero-width no-break space (BOM)
+    "]"
+)
+
+
 def clean_text(text: str) -> str:
     if not isinstance(text, str):
         return text
-    return re.sub(r"[  -​]", " ", text)
+    return _WEIRD_WHITESPACE_RE.sub(" ", text)
 
 
 def email_body_template(order_id, order_subtotal, donation, service_fee, str_products):
