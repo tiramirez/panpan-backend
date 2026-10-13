@@ -1,4 +1,2 @@
 fastapi
 mangum
-boto3
-pandas
