@@ -52,3 +52,16 @@ def test_handler_success(dynamodb_table):
         handler = _import_send_email_handler()
         result = handler.lambda_handler(make_sqs_event(), {})
         assert result["statusCode"] == 200
+
+
+def test_handler_duplicate_order_skips_email(dynamodb_table):
+    with patch("confirmation_email.send_email") as mock_send:
+        handler = _import_send_email_handler()
+        handler.lambda_handler(make_sqs_event(order_id="dup123"), {})
+        mock_send.reset_mock()
+
+        result = handler.lambda_handler(make_sqs_event(order_id="dup123"), {})
+        assert result["statusCode"] == 200
+        assert "Duplicate" in result["body"]
+        mock_send.assert_not_called()
+        assert len(dynamodb_table.scan()["Items"]) == 1

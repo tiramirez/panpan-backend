@@ -21,6 +21,14 @@ class CheckoutRequest(BaseModel):
         extra = "allow"
 
 
+def _order_id_from(body: dict) -> str:
+    """Use the client's checkout_id as order_id so retried/double submits dedupe downstream."""
+    try:
+        return str(uuid.UUID(str(body.get("checkout_id"))))
+    except (ValueError, TypeError):
+        return str(uuid.uuid4())
+
+
 @router.post("/checkout")
 def checkout(body: dict):
     try:
@@ -43,7 +51,7 @@ def checkout(body: dict):
                 "body": "We open on Monday at 17:00 and close on Thursdays at 18:00",
             }
 
-        order_id = str(uuid.uuid4())
+        order_id = _order_id_from(body)
         sqs = client("sqs")
         sqs.send_message(
             QueueUrl=queue_url,
