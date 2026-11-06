@@ -3,13 +3,15 @@ import datetime as dt
 from decimal import Decimal
 
 import boto3
+from botocore.exceptions import ClientError
 
 from shared.logger import get_logger, log_event
 
 logger = get_logger()
 
 
-def save_order(order_id: str, order: dict, menu_version: str = "", **kwargs):
+def save_order(order_id: str, order: dict, menu_version: str = "", **kwargs) -> bool:
+    """Persist the order. Returns False if an order with this id already exists (duplicate submit)."""
     logger.info(f"Saving order #{order_id}")
 
     email = order.get("email")
@@ -39,23 +41,31 @@ def save_order(order_id: str, order: dict, menu_version: str = "", **kwargs):
     dynamodb = boto3.resource("dynamodb")
     table = dynamodb.Table(table_name)
 
-    table.put_item(Item={
-        "PK": week_str,
-        "SK": f"o#{order_id}",
-        "entity_type": "order",
-        "created_at": date_str,
-        "menu_version": menu_version,
-        "email": email,
-        "phone": phone,
-        "firstName": first_name,
-        "lastName": last_name,
-        "comments": comments,
-        "donation": str(donation),
-        "products_total": order_total,
-        "service_fee": Decimal(str(service_fee)),
-        "products": products_embedded,
-        "variant": order.get("variant", "unknown"),
-        "device_id": order.get("device_id", "unknown"),
-    })
+    try:
+        table.put_item(Item={
+            "PK": week_str,
+            "SK": f"o#{order_id}",
+            "entity_type": "order",
+            "created_at": date_str,
+            "menu_version": menu_version,
+            "email": email,
+            "phone": phone,
+            "firstName": first_name,
+            "lastName": last_name,
+            "comments": comments,
+            "donation": str(donation),
+            "products_total": order_total,
+            "service_fee": Decimal(str(service_fee)),
+            "products": products_embedded,
+            "variant": order.get("variant", "unknown"),
+            "device_id": order.get("device_id", "unknown"),
+        }, ConditionExpression="attribute_not_exists(SK)")
+    except ClientError as e:
+        if e.response["Error"]["Code"] != "ConditionalCheckFailedException":
+            raise
+        logger.warning("Order #%s already exists, skipping duplicate", order_id)
+        log_event(logger, "order_duplicate_skipped", order_id=order_id, week=week_str)
+        return False
     logger.info("Saved order with %d embedded products", len(products_embedded))
     log_event(logger, "order_saved", order_id=order_id, week=week_str, product_count=len(products_embedded))
+    return True

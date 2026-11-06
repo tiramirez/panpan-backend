@@ -114,3 +114,14 @@ def test_save_order_no_u_prefix_on_fields(dynamodb_table):
     assert not item["phone"].startswith("u#")
     assert not item["firstName"].startswith("u#")
     assert not item["lastName"].startswith("u#")
+
+
+def test_save_order_duplicate_id_skipped(dynamodb_table):
+    from process_order import save_order
+
+    assert save_order("order-dup", make_order(), menu_version="2026-25") is True
+    assert save_order("order-dup", make_order(comments="second"), menu_version="2026-25") is False
+
+    items = dynamodb_table.scan()["Items"]
+    assert len(items) == 1
+    assert items[0]["comments"] == "no onions"

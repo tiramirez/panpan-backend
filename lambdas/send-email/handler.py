@@ -22,7 +22,8 @@ def lambda_handler(event, _context):
         products = order.get("products")
 
         logger.info(f"Processing order #{short_id}")
-        process_order.save_order(**request)
+        if not process_order.save_order(**request):
+            return {"statusCode": 200, "body": json.dumps(f"Duplicate order ignored. Order ID {short_id}")}
 
         service_fee = 4.0
         subtotal = 0.0
