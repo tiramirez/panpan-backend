@@ -35,8 +35,8 @@ Your order ID is #{order_id.upper()}. Below is a copy of the order we received.
 
 For support with your order or for any questions, email us at pandemicpantrywest@gmail.com.
 You can pick up your share at 705 S 50th Street, Philadelphia, PA during our weekly pick up windows:
-    * Friday from 3PM to 7PM
-    * Saturday from 11AM to 2PM
+    * Tuesday from 2PM to 7PM
+    * Wednesday from 10AM to 2PM
 
 See you later this week!
 
